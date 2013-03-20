@@ -144,12 +144,9 @@ M::M() : e_pool(max_Esub_sz())
 
 struct O { N prior; N assoc; function<E*(M&,E&,E&)> con; };
 
-#define ConF(NM)                                \
-    [](M& m, E& a, E& b) -> E* {                \
-        E* x = (E*)m.e_pool.malloc();           \
-        NM y = NM(a, b);                        \
-        memcpy(x, &y, sizeof(NM));              \
-        return x;                               \
+#define ConF(NM)                                 \
+    [](M& m, E& a, E& b) -> E* {                 \
+        return new (m.e_pool.malloc()) NM(a, b); \
     }
 
 static auto op = map<S,O> {
