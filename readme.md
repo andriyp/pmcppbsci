@@ -1,1 +1,1 @@
-Warning! This project is sort of artistic. Don't try this IRL.
+Warning! This project is sort of artistic.
