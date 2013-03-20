@@ -1,4 +1,3 @@
-#include <cstring>
 #include <iostream>
 #include <cctype>
 #include <stack>
@@ -75,23 +74,23 @@ MkBinOp(Lsr, a <  b, N, N);
 MkBinOp(Geq, a >= b, N, N);
 MkBinOp(Leq, a <= b, N, N);
 
-struct Eql : E { Fld2Con(Eql, E&, a, E&, b);
+struct Eql : E { CFld2Con(Eql, E&, a, E&, b);
     R eval(M& m) const {
         return a.eval(m) == b.eval(m);
     }
 };
 
-struct Var : E { Fld1Con(Var, S, name);
+struct Var : E { CFld1Con(Var, S, name);
     R eval(M& m) const {
         return m.asgs[name];
     }
 };
 
-struct Num : E { Fld1Con(Num, N, numb);
+struct Num : E { CFld1Con(Num, N, numb);
     R eval(M& m) const { return numb; }
 };
 
-struct Str : E { Fld1Con(Str, S, text);
+struct Str : E { CFld1Con(Str, S, text);
     R eval(M& m) const {
         return text;
     }
@@ -102,30 +101,30 @@ constexpr size_t max_Esub_sz() { return cmax(
     cmax(sizeof(Sum), sizeof(Eql))
 );}
 
-struct Prn : C { Fld1Con(Prn, E&, expr);
+struct Prn : C { CFld1Con(Prn, E&, expr);
     V exec(M& m) const {
         cout << expr.eval(m) << endl;
     }
 };
 
-struct Let : C { Fld2Con(Let, S, name, E&, expr);
+struct Let : C { CFld2Con(Let, S, name, E&, expr);
     V exec(M& m) const {
         m.asgs[name] = expr.eval(m);
     }
 };
 
-struct Inp : C { Fld1Con(Inp, S, name);
+struct Inp : C { CFld1Con(Inp, S, name);
     V exec(M& m) const {
         N x; cin >> x;
         m.asgs[name] = x;
     }
 };
 
-struct Jmp : C { Fld1Con(Jmp, N, iptr);
+struct Jmp : C { CFld1Con(Jmp, N, iptr);
     V exec(M& m) const { m.iptr = iptr; }
 };
 
-struct Cnd : C { Fld2Con(Cnd, E&, cond, N, iptr);
+struct Cnd : C { CFld2Con(Cnd, E&, cond, N, iptr);
     V exec(M& m) const {
         R cr = cond.eval(m);
         N* x = get<N>(&cr);
@@ -230,11 +229,7 @@ E* parse_expr(I& it, const I& end, M& m) {
             varnm.reserve(4);
             do varnm += *it++;
             while (it != end && isalpha(*it));
-            E*  e = (E*)m.e_pool.malloc();
-            Var x = Var("");
-            memcpy(e, &x, sizeof(Var));
-            ((Var*)e)->name = varnm;
-            out.push(e);
+            out.push(new (m.e_pool.malloc()) Var(varnm));
             prev_op = false;
         } else if (*it == '"') {
             ++it;
@@ -243,16 +238,9 @@ E* parse_expr(I& it, const I& end, M& m) {
             while (it != end && *it != '"')
                 str += *it++;
             ++it;
-            E*  e = (E*)m.e_pool.malloc();
-            Str x = Str("");
-            memcpy(e, &x, sizeof(Str));
-            ((Str*)e)->text = str;
-            out.push(e);
+            out.push(new (m.e_pool.malloc()) Str(str));
         } else if (prev_op && parse_num(it, end, n)) {
-            E*  e = (E*)m.e_pool.malloc();
-            Num x = Num(n);
-            memcpy(e, &x, sizeof(Num));
-            out.push(e);
+            out.push(new (m.e_pool.malloc()) Num(n));
             prev_op = false;
         } else if (!prev_op && parse_op(it, end, s)) {
             while (!ops.empty()) {
@@ -306,8 +294,7 @@ C* parse_cmd(I& it, const I& end, M& m) {
         if (cmstr == "PRINT") {
             E* e = parse_expr(it, end, m);
             if (!e) throw "PRINT: expression expected as argument.";
-            Prn x = Prn(*e);
-            memcpy(c, &x, sizeof(Prn));
+            new (c) Prn(*e);
         } else if (cmstr == "LET") {            
             S varnm;
             varnm.reserve(4);
@@ -322,9 +309,7 @@ C* parse_cmd(I& it, const I& end, M& m) {
             parse_spaces(it, end);
             E* e = parse_expr(it, end, m);
             if (!e) throw "LET: expression expected as RHS.";
-            Let x = Let("", *e);
-            memcpy(c, &x, sizeof(Let));
-            ((Let*)c)->name = varnm;
+            new (c) Let(varnm, *e);
         } else if (cmstr == "INPUT") {
             S varnm;
             varnm.reserve(4);
@@ -332,15 +317,12 @@ C* parse_cmd(I& it, const I& end, M& m) {
                 varnm += *it++;
             if (varnm.size() == 0)
                 throw "INPUT: variable name expected.";
-            Inp x = Inp("");
-            memcpy(c, &x, sizeof(Inp));
-            ((Inp*)c)->name = varnm;
+            new (c) Inp(varnm);
         } else if (cmstr == "GOTO") {
             int iptr;
             if (!parse_num(it, end, iptr))
                 throw "GOTO: instruction pointer expected.";
-            Jmp x = Jmp(iptr);
-            memcpy(c, &x, sizeof(Jmp));
+            new (c) Jmp(iptr);
         } else if (cmstr == "IF") {
             E* e = parse_expr(it, end, m);
             if (!e) throw "IF: expression expected as condition.";
@@ -355,8 +337,7 @@ C* parse_cmd(I& it, const I& end, M& m) {
             int iptr;
             if (!parse_num(it, end, iptr))
                 throw "IF: instruction pointer expected after `THEN'.";
-            Cnd x = Cnd(*e, iptr);
-            memcpy(c, &x, sizeof(Cnd));
+            new (c) Cnd(*e, iptr);
         } else throw "BAD COMMAND.";
     }    
     return c;
